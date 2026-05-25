@@ -1,0 +1,52 @@
+version: "3.9"
+
+services:
+
+  # ── Main Application ──────────────────────────────────────
+  crop-ai:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: jessicagehlot/crop-ai:latest
+    container_name: crop-ai
+    ports:
+      - "5000:5000"
+    environment:
+      - PORT=5000
+      - FLASK_DEBUG=false
+    volumes:
+      - crop_data:/app/data        # persist trained model & dataset
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c",
+             "import urllib.request; urllib.request.urlopen('http://localhost:5000/api/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  # ── Monitoring Sidecar ────────────────────────────────────
+  monitor:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: jessicagehlot/crop-ai:latest
+    container_name: crop-ai-monitor
+    depends_on:
+      crop-ai:
+        condition: service_healthy
+    environment:
+      - APP_URL=http://crop-ai:5000
+      - CONTAINER_NAME=crop-ai
+      - MONITOR_LOG=/app/monitoring/monitor.log
+    volumes:
+      - ./monitoring:/app/monitoring
+    command: >
+      sh -c "while true; do
+               python monitoring/monitor.py --url http://crop-ai:5000;
+               sleep 60;
+             done"
+    restart: unless-stopped
+
+volumes:
+  crop_data:
