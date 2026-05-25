@@ -49,7 +49,8 @@ pipeline {
             steps {
                 echo "Checking out source code..."
                 checkout scm
-                sh "git log --oneline -5"
+                // Windows-safe
+                bat "git log --oneline -5"
             }
         }
 
@@ -57,10 +58,8 @@ pipeline {
         stage("Install Dependencies") {
             steps {
                 echo "Installing Python dependencies..."
-                sh """
-                    ${PYTHON} -m pip install --upgrade pip
-                    ${PYTHON} -m pip install -r requirements.txt
-                """
+                bat "${PYTHON} -m pip install --upgrade pip"
+                bat "${PYTHON} -m pip install -r requirements.txt"
             }
         }
 
@@ -68,20 +67,11 @@ pipeline {
         stage("Run Tests") {
             steps {
                 echo "Running pytest test suite..."
-                sh """
-                    ${PYTHON} -m pytest tests/ -v \
-                        --cov=. \
-                        --cov-report=xml:coverage.xml \
-                        --cov-report=term-missing \
-                        --junitxml=test-results.xml \
-                        --tb=short
-                """
+                bat "${PYTHON} -m pytest tests/ -v --cov=. --cov-report=xml:coverage.xml --cov-report=term-missing --junitxml=test-results.xml --tb=short"
             }
             post {
                 always {
-                    // Publish JUnit test results
                     junit "test-results.xml"
-                    // Archive coverage report
                     archiveArtifacts artifacts: "coverage.xml", allowEmptyArchive: true
                 }
                 failure {
@@ -94,19 +84,12 @@ pipeline {
         stage("Build Docker Image") {
             steps {
                 echo "Building Docker image: ${DOCKER_IMAGE}:${DOCKER_TAG}"
-                sh """
-                    docker build \
-                        --tag ${DOCKER_IMAGE}:${DOCKER_TAG} \
-                        --tag ${DOCKER_IMAGE}:${DOCKER_LATEST} \
-                        --label "build=${env.BUILD_NUMBER}" \
-                        --label "commit=${env.GIT_COMMIT}" \
-                        .
-                """
-                sh "docker images ${DOCKER_IMAGE}"
+                bat "docker build --tag ${DOCKER_IMAGE}:${DOCKER_TAG} --tag ${DOCKER_IMAGE}:${DOCKER_LATEST} --label \"build=${env.BUILD_NUMBER}\" --label \"commit=${env.GIT_COMMIT}\" ."
+                bat "docker images ${DOCKER_IMAGE}"
             }
         }
 
-        // ── Stage 5: Push to Docker Hub ───────────────────────────────────
+        // ── Stage 5: Push to Docker Hub ────────────────────────────────────
         stage("Push to Docker Hub") {
             steps {
                 echo "Pushing image to Docker Hub..."
@@ -115,12 +98,10 @@ pipeline {
                     usernameVariable: "DOCKER_USER",
                     passwordVariable: "DOCKER_PASS"
                 )]) {
-                    sh """
-                        echo "${DOCKER_PASS}" | docker login -u "${DOCKER_USER}" --password-stdin
-                        docker push ${DOCKER_IMAGE}:${DOCKER_TAG}
-                        docker push ${DOCKER_IMAGE}:${DOCKER_LATEST}
-                        docker logout
-                    """
+                    bat "echo ${DOCKER_PASS} | docker login -u ${DOCKER_USER} --password-stdin"
+                    bat "docker push ${DOCKER_IMAGE}:${DOCKER_TAG}"
+                    bat "docker push ${DOCKER_IMAGE}:${DOCKER_LATEST}"
+                    bat "docker logout"
                 }
             }
         }
@@ -129,12 +110,10 @@ pipeline {
         stage("Deploy") {
             steps {
                 echo "Deploying with docker-compose..."
-                sh """
-                    docker-compose down --remove-orphans || true
-                    docker-compose pull
-                    docker-compose up -d --build
-                    docker-compose ps
-                """
+                bat "docker-compose down --remove-orphans"
+                bat "docker-compose pull"
+                bat "docker-compose up -d --build"
+                bat "docker-compose ps"
             }
         }
 
@@ -142,11 +121,9 @@ pipeline {
         stage("Health Check") {
             steps {
                 echo "Waiting for app to start..."
-                sh "sleep 15"
+                bat "timeout /t 15 /nobreak"
                 echo "Running monitoring health check..."
-                sh """
-                    ${PYTHON} monitoring/monitor.py --url http://localhost:${APP_PORT}
-                """
+                bat "${PYTHON} monitoring/monitor.py --url http://localhost:${APP_PORT}"
             }
         }
 
@@ -158,19 +135,18 @@ pipeline {
             echo """
             ╔══════════════════════════════════════╗
             ║  Pipeline SUCCESS                    ║
-            ║  Image: ${DOCKER_IMAGE}:${DOCKER_TAG}
+            ║  Image: ${DOCKER_IMAGE}:${DOCKER_TAG} 
             ║  Build: ${env.BUILD_NUMBER}          ║
             ╚══════════════════════════════════════╝
             """
         }
         failure {
             echo "Pipeline FAILED — check logs above"
-            // Optional: send email/Slack notification here
         }
         always {
-            // Clean up dangling images
-            sh "docker image prune -f || true"
+            bat "docker image prune -f"
             cleanWs()
         }
     }
 }
+
