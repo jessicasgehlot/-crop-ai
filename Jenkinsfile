@@ -58,8 +58,8 @@ pipeline {
         stage("Install Dependencies") {
             steps {
                 echo "Installing Python dependencies..."
-                bat "${PYTHON} -m pip install --upgrade pip"
-                bat "${PYTHON} -m pip install -r requirements.txt"
+                bat "${PYTHON} -m pip install --upgrade pip --quiet"
+                bat "${PYTHON} -m pip install -r requirements.txt --quiet --prefer-binary"
             }
         }
 
@@ -144,7 +144,13 @@ pipeline {
             echo "Pipeline FAILED — check logs above"
         }
         always {
-            bat "docker image prune -f"
+            script {
+                try {
+                    bat "docker image prune -f"
+                } catch (err) {
+                    echo "Docker not available, skipping prune: ${err.message}"
+                }
+            }
             cleanWs()
         }
     }
