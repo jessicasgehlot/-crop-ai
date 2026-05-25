@@ -111,6 +111,7 @@ pipeline {
             steps {
                 echo "Deploying with docker-compose..."
                 bat "docker-compose down --remove-orphans"
+                bat "docker rm -f crop-ai 2>nul || exit /b 0"
                 bat "docker-compose pull"
                 bat "docker-compose up -d --build"
                 bat "docker-compose ps"
