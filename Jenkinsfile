@@ -122,7 +122,7 @@ pipeline {
         stage("Health Check") {
             steps {
                 echo "Waiting for app to start..."
-                bat "timeout /t 15 /nobreak"
+                bat "ping -n 16 127.0.0.1 > nul"
                 echo "Running monitoring health check..."
                 bat "${PYTHON} monitoring/monitor.py --url http://localhost:${APP_PORT}"
             }
